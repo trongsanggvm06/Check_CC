@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sign in to Netflix</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #141414;
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    max-width: 480px;
+    width: 100%;
+    background: #1f1f1f;
+    border-radius: 12px;
+    padding: 32px 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    text-align: center;
+  }
+  .logo { font-size: 48px; margin-bottom: 16px; }
+  h1 { font-size: 22px; margin-bottom: 8px; color: #e50914; }
+  .subtitle { color: #aaa; font-size: 14px; margin-bottom: 24px; line-height: 1.5; }
+
+  .info {
+    padding: 14px;
+    background: #2a2a2a;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: #ccc;
+    text-align: left;
+  }
+  .info b { color: #fff; }
+  .info ol { padding-left: 22px; margin-top: 8px; }
+  .info li { margin-bottom: 6px; }
+
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 16px 20px;
+    margin: 10px 0;
+    background: #e50914;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover { background: #f40612; }
+  .btn:active { background: #c50710; transform: scale(0.98); }
+  .btn-secondary { background: #2a2a2a; color: #fff; }
+  .btn-secondary:hover { background: #353535; }
+
+  .help {
+    margin-top: 20px;
+    font-size: 12px;
+    color: #888;
+    line-height: 1.6;
+  }
+  .help a { color: #4fc3f7; text-decoration: none; }
+  .help a:hover { text-decoration: underline; }
+
+  .error { color: #ff5252; }
+  .success { color: #4caf50; }
+
+  #status {
+    margin-top: 12px;
+    font-size: 13px;
+    min-height: 18px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">🎬</div>
+    <h1>Sign in to Netflix</h1>
+    <p class="subtitle">Opening Netflix in your browser to sign you in automatically…</p>
+
+    <button id="btn-go" class="btn" type="button">📱 Open Netflix</button>
+
+    <a id="btn-chrome" class="btn btn-secondary" href="#" style="display:none;">
+      🌐 Open in another browser
+    </a>
+
+    <div id="status"></div>
+
+    <div class="help">
+      <p id="hint">If it doesn't open automatically, tap <b>"Open Netflix"</b> above.</p>
+      <p style="margin-top:6px;">Tip: if it still fails, tap <b>⋮</b> (top-right) → <b>"Open in Chrome / browser"</b>.</p>
+      <p style="margin-top:6px;">This link is valid for ~<span id="expiry-text">59</span> minutes.</p>
+    </div>
+  </div>
+
+<script>
+(function () {
+  // ── MỤC TIÊU: mở netflix.com/?nftoken= trong TRÌNH DUYỆT MẶC ĐỊNH của máy
+  //   (đúng cái Netflix app dùng làm Custom Tab khi handoff). Khi đó cookie redeem
+  //   + cookie handoff CHUNG một browser → app login được.
+  //   Lỗi NSES-404 cũ = khách bấm link trong WebView Zalo/Messenger → redeem trong
+  //   WebView, nhưng app handoff dùng trình duyệt mặc định (Chrome) → cookie KHÔNG
+  //   chung → app không có session. Nên ở đây phải THOÁT WebView ra trình duyệt thật.
+  const NFTOKEN = {{ nftoken|tojson }};
+  const EXPIRY_MIN = {{ expiry_min|tojson }};
+  const ENC = encodeURIComponent(NFTOKEN);
+  // GO = endpoint TRÊN DOMAIN CỦA TA → server 302 sang netflix (redirect KHÔNG bị app cướp).
+  // Dùng domain ta vì app Netflix là handler mặc định của netflix.com — nếu trỏ thẳng
+  // netflix.com thì Android mở APP cold (chưa redeem) → Google Sign-In → NSES-404.
+  const GO = window.location.origin + "/go/" + ENC;
+
+  // Breakout intent: mở GO (domain ta) trong TRÌNH DUYỆT MẶC ĐỊNH — thoát WebView app chat.
+  const BREAKOUT =
+    "intent://" + window.location.host + "/go/" + ENC +
+    "#Intent" +
+    ";scheme=https" +
+    ";action=android.intent.action.VIEW" +
+    ";category=android.intent.category.BROWSABLE" +
+    ";S.browser_fallback_url=" + encodeURIComponent(GO) +
+    ";end";
+
+  const ua = navigator.userAgent || "";
+  const isAndroid = /Android/i.test(ua);
+  // WebView app chat: Android WebView ("; wv)") hoặc UA của FB/IG/Zalo/Line/WeChat...
+  const isWebView = /;\s*wv\)/.test(ua) ||
+    /FBAN|FBAV|FB_IAB|Instagram|Line\/|Zalo|MicroMessenger|GSA|Twitter|TikTok/i.test(ua);
+
+  const btn = document.getElementById("btn-go");
+  const btnChrome = document.getElementById("btn-chrome");
+  const status = document.getElementById("status");
+  const exp = document.getElementById("expiry-text");
+  if (exp) exp.textContent = EXPIRY_MIN;
+
+  function go() {
+    if (isAndroid && isWebView) {
+      status.textContent = "Opening in your browser…";
+      window.location.href = BREAKOUT;     // thoát WebView → trình duyệt mặc định
+    } else {
+      window.location.href = GO;           // browser thật / iOS / PC → /go 302 → netflix
+    }
+  }
+
+  btn.addEventListener("click", function (e) { e.preventDefault(); go(); });
+
+  // Nút dự phòng: luôn ép breakout (cho trường hợp không nhận diện được WebView)
+  if (isAndroid) {
+    btnChrome.style.display = "block";
+    btnChrome.addEventListener("click", function (e) {
+      e.preventDefault();
+      window.location.href = BREAKOUT;
+    });
+  }
+
+  // Tự thử ngay (nếu bị chặn vì thiếu user-gesture thì đã có nút)
+  setTimeout(go, 350);
+})();
+</script>
+</body>
+</html>

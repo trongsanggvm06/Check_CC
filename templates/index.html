@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <div class="logo">N<span>etflix</span> Link</div>
+      <p>{{ subtitle }}</p>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="tab-single">🔑 Đơn lẻ</button>
+      <button class="tab-btn" data-tab="tab-batch">📦 Batch</button>
+    </div>
+
+    <!-- ===== TAB: ĐƠN LẺ ===== -->
+    <div id="tab-single" class="tab-panel active">
+      <div class="card">
+        <h3>Cookie Netflix</h3>
+        <form id="single-form">
+          <textarea
+            id="single-input"
+            placeholder='Dán cookie vào đây (JSON array hoặc chuỗi thuần tuý).
+Ví dụ JSON:
+[{"name":"NetflixId","value":"v%3D3%26ct..."},{"name":"SecureNetflixId","value":"v%3D3%26mac..."}]
+
+Ví dụ thuần tuý:
+NetflixId=v%3D3%26ct...; SecureNetflixId=v%3D3%26mac...'
+          ></textarea>
+
+          <div class="format-hint">
+            Cần tối thiểu <code>NetflixId</code> và <code>SecureNetflixId</code>.
+            Hỗ trợ export từ <strong>EditThisCookie</strong>, <strong>Cookie-Editor</strong> (JSON array) hoặc chuỗi cookie thô.
+          </div>
+
+          <label style="display:flex;align-items:center;gap:8px;margin:8px 0 4px;font-size:.85rem;color:var(--text-muted);cursor:pointer;">
+            <input type="checkbox" id="opt-refresh" checked style="accent-color:var(--primary);" />
+            <span>Làm mới cookie trước khi tạo link</span>
+          </label>
+
+          <div class="actions">
+            <button type="submit" class="btn btn-primary" id="single-btn">
+              <div class="spinner" id="single-spinner"></div>
+              Tạo Link
+            </button>
+            <button type="button" class="btn btn-clear" id="clear-single">Xoá</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="single-results">
+        <div class="empty-state">
+          <div class="icon">🎬</div>
+          Kết quả sẽ hiện ở đây
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: BATCH ===== -->
+    <div id="tab-batch" class="tab-panel">
+      <div class="card">
+        <h3>Check Cookie – Nhiều tài khoản</h3>
+        <form id="batch-form">
+          <textarea
+            id="batch-input"
+            aria-label="Danh sách cookie Netflix cần kiểm tra"
+            style="min-height: 200px"
+            placeholder='Dán nhiều bộ cookie. App TỰ ĐỘNG detect — không cần "----".
+
+Ví dụ (dán liền nhau):
+[{"name":"NetflixId","value":"..."},...][{"name":"NetflixId","value":"..."},...]
+
+Hoặc cách dòng:
+[{"name":"NetflixId","value":"..."},...]
+
+[{"name":"NetflixId","value":"..."},...]'
+          ></textarea>
+
+          <div class="format-hint">
+            App tự detect block: nhiều JSON array dính nhau, cách bằng dòng trắng, hoặc <code>----</code> đều OK.
+            Trộn JSON array với chuỗi thuần tuý cũng được. Cookie tạo được link được xếp vào <strong>LIFE</strong>;
+            cookie không tạo được link được xếp vào <strong>DIE</strong>.
+          </div>
+
+          <label style="display:flex;align-items:center;gap:8px;margin:8px 0 4px;font-size:.85rem;color:var(--text-muted);cursor:pointer;">
+            <input type="checkbox" id="opt-refresh-batch" checked style="accent-color:var(--primary);" />
+            <span>Làm mới cookie trước khi tạo link</span>
+          </label>
+
+          <div class="actions">
+            <button type="submit" class="btn btn-primary" id="batch-btn">
+              <div class="spinner" id="batch-spinner"></div>
+              Bắt đầu check
+            </button>
+            <button type="button" class="btn btn-stop" id="stop-batch" style="display:none;">⏹ Dừng</button>
+            <button type="button" class="btn btn-clear" id="clear-batch">Xoá</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="progress-wrap" id="batch-progress-wrap" style="display:none;">
+        <div class="progress-info">
+          <span id="batch-progress-text">Đang xử lý 0/0...</span>
+          <span id="batch-progress-percent">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="batch-progress-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="batch-summary-bar" id="batch-stats" style="display:none; margin-bottom:16px;">
+        <div class="batch-counts" aria-live="polite"></div>
+        <div class="download-actions" aria-label="Tải kết quả cookie">
+          <button type="button" class="btn btn-life" id="download-life" disabled>
+            Tải LIFE (.txt)
+          </button>
+          <button type="button" class="btn btn-die" id="download-die" disabled>
+            Tải DIE (.txt)
+          </button>
+        </div>
+      </div>
+
+      <div class="result-groups" id="batch-results">
+        <section class="result-group result-group-life" aria-labelledby="life-heading">
+          <div class="result-group-heading">
+            <div>
+              <span class="result-group-kicker">Tạo được link</span>
+              <h3 id="life-heading">LIFE <span class="group-count" id="life-count">0</span></h3>
+            </div>
+          </div>
+          <div class="result-group-list" id="life-results">
+            <div class="group-empty">Chưa có cookie LIFE</div>
+          </div>
+        </section>
+
+        <section class="result-group result-group-die" aria-labelledby="die-heading">
+          <div class="result-group-heading">
+            <div>
+              <span class="result-group-kicker">Không tạo được link</span>
+              <h3 id="die-heading">DIE <span class="group-count" id="die-count">0</span></h3>
+            </div>
+          </div>
+          <div class="result-group-list" id="die-results">
+            <div class="group-empty">Chưa có cookie DIE</div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/static/js/main.js"></script>
+</body>
+</html>
