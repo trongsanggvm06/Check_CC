@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: lay-link-curtis
+    name: check-cc
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120
