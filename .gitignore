@@ -12,6 +12,26 @@ venv/
 # Thư mục mẫu tham khảo — không commit
 Example_format_file_life_and_die/
 
+# Code tham khảo từ repo gốc — không cần trong repo deploy
+Netflix-Cookie-Checker-main/
+
+# File tạm / debug — không commit
+_tmp_*
+_DBG*
+_aasa_netflix.json
+_assetlinks_netflix.json
+_bot_orig.py
+_cookies_in.json
+_probe*.py
+_DEBUG_REPORT.md
+Auto_Login_NF_tmp_*
+"ỔF_Auto_Login_NF_tmp_nfkey_b64.txt"
+netflix_manifest.xml
+LOGIN_GUIDE.md
+CLAUDE-CODE-CLI.bat
+start.bat
+stop.bat
+
 # IDE
 .vscode/
 .idea/
