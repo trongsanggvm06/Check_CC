@@ -104,8 +104,8 @@ ANDROID_NFTOKEN_API_URL = "https://android.prod.ftl.netflix.com/androidui/user/1
 
 
 def _build_android_params_and_headers():
-    esn = _get_android_esn()
-    guid = _get_android_guid()
+    esn = _gen_esn("NFANDROID-01-")
+    guid = _gen_guid()
     return {
         "params": {
             "appVersion": "15.48.1",
@@ -435,6 +435,83 @@ def parse_cookie_blocks(raw: str) -> list:
     parsed_blocks = [parse_cookies(block) for block in blocks]
     parsed_blocks = [cd for cd in parsed_blocks if cd]
     return _fill_missing_shared_cookies(parsed_blocks)
+
+
+# ─── Chuẩn hoá 1 block về JSON Cookie-Editor (để nhập lại Cookie Editor) ────────
+
+# Thuộc tính chuẩn cho từng cookie khi DỰNG LẠI JSON (khớp file mẫu Life.txt).
+_COOKIE_ATTRS = {
+    "flwssn":          {"httpOnly": False, "sameSite": "unspecified", "secure": False},
+    "nfvdid":          {"httpOnly": False, "sameSite": "unspecified", "secure": False},
+    "SecureNetflixId": {"httpOnly": True,  "sameSite": "strict",      "secure": True},
+    "NetflixId":       {"httpOnly": True,  "sameSite": "lax",         "secure": True},
+    "OptanonConsent":  {"httpOnly": False, "sameSite": "lax",         "secure": False},
+    "gsid":            {"httpOnly": False, "sameSite": "unspecified", "secure": False},
+}
+# Thứ tự xuất giống file mẫu Example_format_file_life_and_die/Life.txt
+_COOKIE_ORDER = ("flwssn", "nfvdid", "SecureNetflixId", "NetflixId", "OptanonConsent", "gsid")
+
+
+def _encode_cookie_value(value: str) -> str:
+    """Encode value về dạng wire trình duyệt lưu: v=3&ct=... -> v%3D3%26ct%3D..."""
+    if not value:
+        return value
+    if "%" in value:  # value đã ở dạng encode rồi -> giữ nguyên, tránh double-encode
+        return value
+    return urllib.parse.quote(value, safe="-_.~")
+
+
+def _looks_like_cookie_editor_json(raw_block: str) -> bool:
+    """True nếu block ĐÃ là JSON array Cookie-Editor hợp lệ (mảng object có name+value)."""
+    text = (raw_block or "").strip()
+    if not text.startswith("["):
+        return False
+    try:
+        data = json.loads(text)
+    except Exception:
+        return False
+    return (
+        isinstance(data, list) and len(data) > 0
+        and all(isinstance(x, dict) and "name" in x and "value" in x for x in data)
+    )
+
+
+def to_cookie_editor_json(raw_block: str) -> str:
+    """
+    Chuẩn hoá 1 block cookie về JSON array NHẬP ĐƯỢC vào Cookie-Editor:
+
+      • Nếu block ĐÃ là JSON Cookie-Editor hợp lệ  → GIỮ NGUYÊN VĂN BẢN (đúng cookie đầu vào,
+        không đụng gì tới value đang encode như v%3D3%26ct%3D...).
+      • Nếu là chuỗi thô key=value / Netscape / JSON hỏng → DỰNG LẠI JSON với value được
+        RE-ENCODE (v%3D3%26ct%3D...) để Cookie-Editor import được và Netflix chấp nhận.
+
+    Nhờ vậy dù người dùng dán vào dạng gì, file tải về luôn import lại Cookie-Editor OK.
+    """
+    if _looks_like_cookie_editor_json(raw_block):
+        return raw_block.strip()
+
+    cd = parse_cookies(raw_block)  # value ở đây đã được decode
+    items = []
+    for key in _COOKIE_ORDER:
+        val = cd.get(key)
+        if not val:
+            continue
+        attrs = _COOKIE_ATTRS[key]
+        items.append({
+            "domain": ".netflix.com",
+            "hostOnly": False,
+            "httpOnly": attrs["httpOnly"],
+            "name": key,
+            "path": "/",
+            "sameSite": attrs["sameSite"],
+            "secure": attrs["secure"],
+            "session": False,
+            "storeId": "0",
+            "value": _encode_cookie_value(val),
+        })
+    if not items:
+        return raw_block.strip()
+    return json.dumps(items, separators=(",", ":"), ensure_ascii=False)
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────

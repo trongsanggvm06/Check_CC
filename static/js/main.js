@@ -507,7 +507,7 @@ function getDieExport() {
   return [...batchRun.results.values()]
     .filter((record) => !record.data.ok)
     .sort((a, b) => a.index - b.index)
-    .map((record) => `COOKIE = ${(record.raw || "").trim()}`)
+    .map((record) => `COOKIE = ${(record.raw || "").trim()} | Next Payment = N/A | Plan = N/A`)
     .join("\n\n");
 }
 

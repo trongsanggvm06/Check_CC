@@ -7,6 +7,7 @@ from netflix import (
     get_login_links,
     refresh_cookies,
     split_cookie_blocks,
+    to_cookie_editor_json,
     _extract_dt,
 )
 from account_info import fetch_account_minimal
@@ -133,21 +134,20 @@ def split():
     if not raw_all:
         return jsonify({"ok": False, "error": "Vui lòng nhập cookie"}), 400
 
-    parsed_blocks = parse_cookie_blocks(raw_all)
-    if parsed_blocks:
-        hydrated_blocks = []
-        for cookie_dict in parsed_blocks:
-            parts = []
-            for key in ("NetflixId", "SecureNetflixId", "nfvdid", "OptanonConsent", "flwssn"):
-                value = cookie_dict.get(key)
-                if value:
-                    parts.append(f"{key}={value}")
-            if parts:
-                hydrated_blocks.append("; ".join(parts))
-        if hydrated_blocks:
-            return jsonify({"ok": True, "blocks": hydrated_blocks, "count": len(hydrated_blocks)})
+    # Tách input thành các block GIỮ NGUYÊN VĂN BẢN GỐC — KHÔNG decode / re-serialize.
+    # Mục đích: cookie lúc check và cookie khi tải file (life.txt/die.txt) phải KHỚP
+    # CHÍNH XÁC với cookie người dùng dán vào (vd JSON array Cookie-Editor, value còn
+    # URL-encode dạng v%3D3%26ct%3D...). Trước đây bước này hydrate lại từ dict ĐÃ decode
+    # rồi ghép "NetflixId=...; SecureNetflixId=..." nên file tải về bị đổi sang dạng
+    # "NetflixId=v=3&ct=..." (value đã giải mã) — SAI so với cookie đầu vào.
+    raw_blocks = split_cookie_blocks(raw_all)
 
-    blocks = split_cookie_blocks(raw_all)
+    # Bỏ block rác (không parse ra được cookie key nào), rồi CHUẨN HOÁ mỗi block hợp lệ về
+    # JSON Cookie-Editor: JSON hợp lệ -> giữ nguyên; chuỗi thô -> dựng JSON + re-encode value.
+    # Nhờ vậy block dùng để check VÀ block tải về file luôn import lại Cookie-Editor được.
+    valid_blocks = [to_cookie_editor_json(b) for b in raw_blocks if parse_cookies(b)]
+    blocks = valid_blocks if valid_blocks else raw_blocks
+
     return jsonify({"ok": True, "blocks": blocks, "count": len(blocks)})
 
 
@@ -182,4 +182,4 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", config.PORT))
     print(f"[*] App chạy tại http://0.0.0.0:{port}")
-    app.run(host="0.0.0.0", port=port, debug=config.DEBUG)
+    app.run(host="0.0.0.0", port=port, debug=config.DEBUG, threaded=True)
